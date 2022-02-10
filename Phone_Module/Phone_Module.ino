@@ -1,7 +1,7 @@
 // Phone module running on an Arduino Nano.
 #include <PJONSoftwareBitBang.h>
 
-#define PJON_Bus_ID  19
+#define PJON_Bus_ID 19
 #define PJON_Comm_Pin 8
 
 // PJON Bus Declaration.
@@ -9,7 +9,26 @@
 // 19 for Phone Module.
 PJONSoftwareBitBang bus(PJON_Bus_ID);
 
+// STRUCTS
+struct payLoad {
+  uint8_t cmd;          // Defines the what to do on the other side.
+  char msgLine[20];     // Character to send either phone number.
+};
+
+payLoad pl;
+
+// CONSTANTS
+
+// GLOBAL VARIABLES
+
+// Receiver function to handle all incoming messages.
 void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info &packet_info) {
+  // Read where the message is from.
+  Serial.print(" Transmitter id: ");
+  Serial.println(packet_info.tx.id);
+
+  // Copy the payload byte array into struct.
+  memcpy(&pl, payload, sizeof(pl));
 };
 
 void setup() {
@@ -18,7 +37,7 @@ void setup() {
 
   bus.strategy.set_pin(PJON_Comm_Pin);
   bus.set_receiver(receiver_function);
-  bus.begin(); 
+  bus.begin();
 }
 
 void loop() {
