@@ -1,13 +1,14 @@
 // Command module running on an ESP32.
 #include <PJONSoftwareBitBang.h>
 
-#define PJON_Bus_ID 20
+#define PJON_Phone_Id 19
+#define PJON_Command_Id 20
 #define PJON_Comm_Pin 25
 
 // PJON Bus Declaration.
 // 20 for Command Module.
 // 19 for Phone Module.
-PJONSoftwareBitBang bus(PJON_Bus_ID);
+PJONSoftwareBitBang bus(PJON_Command_Id);
 
 // STRUCTS
 struct payLoad {
@@ -21,16 +22,26 @@ payLoad pl;
 
 // GLOBAL VARIABLES
 
+// FUNCTIONS
+void send_command(uint8_t id, uint8_t cmd) {
+  // A function that handles all the messaging to the command module.
+  payLoad r;
+  r.cmd = cmd;
+  bus.send(id, &r, sizeof(&r));
+  bus.update();
+};
+
 // Receiver function to handle all incoming messages.
 void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info &packet_info) {
   // Read where the message is from.
+  // packet_info.tx.id > Number of the transmitter Id.
+  // packet_info.rx.id > Number of the receiver Id.
   Serial.print(" Transmitter id: ");
   Serial.println(packet_info.tx.id);
 
   // Copy the payload byte array into struct.
   memcpy(&pl, payload, sizeof(pl));
   Serial.println(pl.cmd);
-  bus.reply(&pl, sizeof(&pl));
 };
 
 void setup() {
