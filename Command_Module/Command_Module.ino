@@ -29,6 +29,8 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
 
   // Copy the payload byte array into struct.
   memcpy(&pl, payload, sizeof(pl));
+  Serial.println(pl.cmd);
+  bus.reply(&pl, sizeof(&pl));
 };
 
 void setup() {

@@ -20,6 +20,7 @@ payLoad pl;
 // CONSTANTS
 
 // GLOBAL VARIABLES
+int i;
 
 // Receiver function to handle all incoming messages.
 void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info &packet_info) {
@@ -29,6 +30,7 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
 
   // Copy the payload byte array into struct.
   memcpy(&pl, payload, sizeof(pl));
+  Serial.println(pl.cmd);
 };
 
 void setup() {
@@ -42,6 +44,10 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+  pl.cmd = i;
+  bus.send(20,&pl, sizeof(&pl));
+  i++;
+  delay(100);
   bus.update();
-  bus.receive(10000);
+  bus.receive(30000);
 }
