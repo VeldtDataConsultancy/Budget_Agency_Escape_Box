@@ -2,9 +2,9 @@
 #include <PJONSoftwareBitBang.h>
 #include <Bounce2.h>
 
-#define PJON_Phone_Id 19
-#define PJON_Command_Id 20
-#define PJON_Comm_Pin 8
+#define PJON_Phone_Id 19 // Id for the Phone module.
+#define PJON_Command_Id 20 // Id for the Command module.
+#define PJON_Comm_Pin 8 // Communication pin for PJON on the target PLC.
 
 #define hookPin 2
 #define repeatPin 3

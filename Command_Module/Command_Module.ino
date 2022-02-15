@@ -1,13 +1,11 @@
 // Command module running on an ESP32.
 #include <PJONSoftwareBitBang.h>
 
-#define PJON_Phone_Id 19
-#define PJON_Command_Id 20
-#define PJON_Comm_Pin 25
+#define PJON_Phone_Id 19 // Id for the Phone module.
+#define PJON_Command_Id 20 // Id for the Command module.
+#define PJON_Comm_Pin 25 // Communication pin for PJON on the target PLC.
 
 // PJON Bus Declaration.
-// 20 for Command Module.
-// 19 for Phone Module.
 PJONSoftwareBitBang bus(PJON_Command_Id);
 
 // STRUCTS
@@ -55,6 +53,5 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  bus.update();
   bus.receive(10000);
 }
