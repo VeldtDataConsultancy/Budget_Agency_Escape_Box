@@ -124,6 +124,7 @@ void loop() {
       break;
 
     case Dialling:
+    // TODO: Create branch to enter this code inside an interrupt.
       if (numberSwitch.fell()) {
         pulseCount++;
       }
