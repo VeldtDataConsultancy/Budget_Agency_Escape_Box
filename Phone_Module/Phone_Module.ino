@@ -161,5 +161,5 @@ void loop() {
       }
       break;
   }
-  bus.receive(10000);
+  if (state != Dialling) bus.receive(10000);
 }
