@@ -161,8 +161,5 @@ void loop() {
       }
       break;
   }
-
-
-  bus.update();
   bus.receive(10000);
 }
