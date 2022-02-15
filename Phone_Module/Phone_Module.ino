@@ -121,6 +121,7 @@ void loop() {
           state = Dialling;
         }
       }
+      break;
 
     case Dialling:
       if (numberSwitch.fell()) {
