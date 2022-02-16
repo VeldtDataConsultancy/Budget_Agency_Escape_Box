@@ -23,9 +23,18 @@ payLoad pl;
 // FUNCTIONS
 void send_command(uint8_t id, uint8_t cmd) {
   // A function that handles all the messaging to the command module.
-  payLoad r;
-  r.cmd = cmd;
-  bus.send(id, &r, sizeof(&r));
+  payLoad pl;
+  pl.cmd = cmd;
+  bus.send(id, &pl, sizeof(&pl));
+  bus.update();
+};
+
+void send_command(uint8_t id, uint8_t cmd, char msgLine[20]) {
+  // A function that handles all the messaging to the command module.
+  payLoad pl;
+  strcpy(pl.msgLine , msgLine);
+  pl.cmd = cmd;
+  bus.send(id, &pl, sizeof(&pl));
   bus.update();
 };
 
@@ -40,6 +49,7 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
   // Copy the payload byte array into struct.
   memcpy(&pl, payload, sizeof(pl));
   Serial.println(pl.cmd);
+  Serial.println(pl.msgLine);
 };
 
 void setup() {
@@ -53,5 +63,5 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  bus.receive(10000);
+  bus.receive();
 }
