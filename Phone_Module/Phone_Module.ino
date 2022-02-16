@@ -175,8 +175,6 @@ void loop() {
       }
       break;
   }
-  // Intermediate solution.
-  // While Dialing, waiting for the receive bus is hampering the pulseCount.
-  // If properly working, this should be shut off as little as possible.
+  
   if (checkReceive == true) bus.receive(10000);
 }
