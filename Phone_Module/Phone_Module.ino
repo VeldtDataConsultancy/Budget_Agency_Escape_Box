@@ -49,12 +49,17 @@ void send_command(uint8_t id, uint8_t cmd) {
   bus.update();
 };
 
-// Receiver function to handle all incoming messages.
-void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info &packet_info) {
-  // Read where the message is from.
-  // packet_info.tx.id > Number of the transmitter Id.
-  // packet_info.rx.id > Number of the receiver Id.
+void send_command(uint8_t id, uint8_t cmd, char msgLine[20]) {
+  // A function that handles all the messaging to the command module.
+  payLoad pl;
+  strcpy(pl.msgLine , msgLine);
+  pl.cmd = cmd;
+  bus.send(id, &pl, sizeof(&pl));
+  bus.update();
+};
 
+void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info &packet_info) {
+  // Receiver function to handle all incoming messages.
   // Copy the payload byte array into struct.
   memcpy(&pl, payload, sizeof(pl));
   Serial.println(pl.cmd);
@@ -140,9 +145,14 @@ void loop() {
         }
         number[currentDigit] = pulseCount | '0';
         
-        send_command(PJON_Command_Id,pulseCount);
+        send_command(PJON_Command_Id,10,number);
         currentDigit++;
         pulseCount = 0;
+      }
+
+      if (currentDigit > maxPhoneNumber) {
+        state = Disconnected;
+        send_command(PJON_Command_Id,11);
       }
       break;
 
