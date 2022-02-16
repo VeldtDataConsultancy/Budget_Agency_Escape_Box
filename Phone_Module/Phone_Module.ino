@@ -31,7 +31,7 @@ struct payLoad {
 payLoad pl;
 
 // ENUMERATORS
-typedef enum {Idle, Dialtone, Dialling, Connecting_Init, Connecting, Connected, Disconnected, Ringing} stateType;
+typedef enum {Idle, Dialtone, Dialling, Connected, Disconnected, Ringing} stateType;
 stateType state = Idle;
 
 // GLOBAL VARIABLES
@@ -39,6 +39,8 @@ const uint8_t maxPhoneNumber = 4; // Maximum phone number to accept. Above resul
 uint8_t pulseCount = 0;           // Count of the amount of pulses observed while dialing.
 uint8_t currentDigit = 0;         // current digit of the number being Dialled.
 char number[maxPhoneNumber + 1];  // Phone number length plus terminal signal.
+
+bool checkReceive = true;
 
 // FUNCTIONS
 void send_command(uint8_t id, uint8_t cmd) {
@@ -127,8 +129,9 @@ void loop() {
 
     case Dialtone:
       {
-        if (dialSwitch.fell()) { // Start Dialling soon as the dialSwitch is open.
+        if (dialSwitch.fell()) { // Start Dialling as soon as the dialSwitch is open.
           send_command(PJON_Command_Id, 5);
+          checkReceive = false;
           state = Dialling;
         }
       }
@@ -138,42 +141,33 @@ void loop() {
       if (numberSwitch.fell()) {
         pulseCount++;
       }
-      
+
       if (dialSwitch.rose()) {
+        checkReceive = true;
         if (pulseCount >= 10) {
           pulseCount = 0;
         }
         number[currentDigit] = pulseCount | '0';
-        
-        send_command(PJON_Command_Id,10,number);
+
+        send_command(PJON_Command_Id, 10, number);
         currentDigit++;
         pulseCount = 0;
       }
 
       if (currentDigit > maxPhoneNumber) {
         state = Disconnected;
-        send_command(PJON_Command_Id,11);
+        send_command(PJON_Command_Id, 11);
       }
-      break;
 
-    case Connecting_Init:
-      {
-      }
-      break;
-
-    case Connecting:
-      {
+      if (dialSwitch.fell()) {
+        checkReceive = false;
       }
       break;
 
     case Connected:
-      {
-      }
       break;
 
     case Disconnected:
-      {
-      }
       break;
 
     case Ringing:
@@ -184,5 +178,5 @@ void loop() {
   // Intermediate solution.
   // While Dialing, waiting for the receive bus is hampering the pulseCount.
   // If properly working, this should be shut off as little as possible.
-  if (state != Dialling) bus.receive(10000); 
+  if (checkReceive == true) bus.receive(10000);
 }
