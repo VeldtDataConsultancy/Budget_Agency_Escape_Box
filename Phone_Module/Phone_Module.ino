@@ -48,7 +48,6 @@ void send_command(uint8_t id, uint8_t cmd) {
   payLoad pl;
   pl.cmd = cmd;
   bus.send(id, &pl, sizeof(&pl));
-  bus.update();
 };
 
 void send_command(uint8_t id, uint8_t cmd, char msgLine[20]) {
@@ -57,7 +56,6 @@ void send_command(uint8_t id, uint8_t cmd, char msgLine[20]) {
   strcpy(pl.msgLine , msgLine);
   pl.cmd = cmd;
   bus.send(id, &pl, sizeof(&pl));
-  bus.update();
 };
 
 void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info &packet_info) {
@@ -175,6 +173,7 @@ void loop() {
       }
       break;
   }
-  
+
+  bus.update();
   if (checkReceive == true) bus.receive(10000);
 }
