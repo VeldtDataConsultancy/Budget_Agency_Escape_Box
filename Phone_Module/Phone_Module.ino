@@ -47,7 +47,7 @@ void send_command(uint8_t id, uint8_t cmd) {
   // A function that handles all the messaging to the command module.
   payLoad pl;
   pl.cmd = cmd;
-  bus.send(id, &pl, sizeof(&pl));
+  bus.send(id, &pl, sizeof(pl));
 };
 
 void send_command(uint8_t id, uint8_t cmd, char msgLine[20]) {
@@ -55,7 +55,7 @@ void send_command(uint8_t id, uint8_t cmd, char msgLine[20]) {
   payLoad pl;
   strcpy(pl.msgLine , msgLine);
   pl.cmd = cmd;
-  bus.send(id, &pl, sizeof(&pl));
+  bus.send(id, &pl, sizeof(pl));
 };
 
 void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info &packet_info) {
