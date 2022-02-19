@@ -1,7 +1,7 @@
 // Command module running on an ESP32.
-//#include <Wire.h>
+#include <Wire.h>
 #include <SoftwareSerial.h>
-//#include <LiquidCrystal_I2C.h>
+#include <LiquidCrystal_I2C.h>
 #include <Bounce2.h>
 #include <PJONSoftwareBitBang.h>
 #include "DFRobotDFPlayerMini.h"
@@ -23,6 +23,9 @@ PJONSoftwareBitBang bus(PJON_Command_Id);
 // SoftwareSerial and MP3player declaration.
 SoftwareSerial mp3Serial; // RX, TX
 DFRobotDFPlayerMini mp3;
+
+// LCD initialization.
+LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 // STRUCTS
 struct payLoad {
@@ -89,6 +92,15 @@ void setup() {
   mp3.volume(30);  //Set volume value (0~30).
   mp3.EQ(DFPLAYER_EQ_NORMAL);
   mp3.outputDevice(DFPLAYER_DEVICE_SD);
+
+  // LCD Config Settings.
+  lcd.init();
+  lcd.setBacklight(100);
+  delay(100);
+  lcd.print("Console v0.1");
+  lcd.setCursor(0, 3);
+  String msgLine = "Test if it works.";
+  lcd.print(msgLine);
 }
 
 void loop() {
