@@ -35,12 +35,14 @@ typedef enum {Idle, Dialtone, Dialling, Connected, Disconnected, Ringing} stateT
 stateType state = Idle;
 
 // GLOBAL VARIABLES
+const int ringerPins[] = {6, 7};
 const uint8_t maxPhoneNumber = 4; // Maximum phone number to accept. Above results in disconnect.
 uint8_t pulseCount = 0;           // Count of the amount of pulses observed while dialing.
 uint8_t currentDigit = 0;         // current digit of the number being Dialled.
 char number[maxPhoneNumber + 1];  // Phone number length plus terminal signal.
 
 bool checkReceive = true;
+unsigned long lastRingTime;
 
 // FUNCTIONS
 void send_command(uint8_t id, uint8_t cmd) {
@@ -59,10 +61,20 @@ void send_command(uint8_t id, uint8_t cmd, char msgLine[20]) {
 };
 
 void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info &packet_info) {
-  // Receiver function to handle all incoming messages.
-  // Copy the payload byte array into struct.
+  // cmd values for the phone module.
+  // 0. Start game.
+  // 1. Ring the phone if phone is idle.
+  // 2. Correct number entered. Switch state to Connected.
+  // 3. False number entered. Switch state to Disconnected.
   memcpy(&pl, payload, sizeof(pl));
   Serial.println(pl.cmd);
+  if (pl.cmd == 0) Serial.println("TODO: Create start flag.");
+  if (pl.cmd == 1) {
+    if (state == Idle) Serial.println("TODO: Create Ringing Code");
+    else Serial.println("TODO: Create Message Queue");
+  }
+  if (pl.cmd == 2) state = Connected;
+  if (pl.cmd == 3) state = Disconnected;
 };
 
 void setup() {
@@ -93,6 +105,13 @@ void setup() {
   pinMode(numberPin, INPUT_PULLUP);
   numberSwitch.attach(numberPin);
   numberSwitch.interval(20);
+
+  // Define the ringerpins as OUTPUT, initial state low.
+  pinMode(ringerPins[0], OUTPUT);
+  pinMode(ringerPins[1], OUTPUT);
+  digitalWrite(ringerPins[0], LOW);
+  digitalWrite(ringerPins[1], LOW);
+
 }
 
 void loop() {
@@ -169,7 +188,28 @@ void loop() {
       break;
 
     case Ringing:
-      {
+      int nu = millis();
+      if (nu - lastRingTime > 4000) {
+        for (int j = 0; j < 2; j++) {
+          for (int i = 0; i < 20; i++) {
+            hookSwitch.update();
+            if (hookSwitch.fell()) {
+              j = 2;
+              break;
+            }
+            digitalWrite(ringerPins[0], i % 2);
+            digitalWrite(ringerPins[1], 1 - (i % 2));
+            delay(40);  // Set to 40 on Brown Phone, 20 on Ivory Phone.
+          }
+          delay(200);
+        }
+        digitalWrite(ringerPins[0], LOW);
+        digitalWrite(ringerPins[1], LOW);
+        lastRingTime = nu;
+      }
+      if (hookSwitch.fell()) {
+        state = Connected;
+        send_command(PJON_Command_Id, 12);
       }
       break;
   }
