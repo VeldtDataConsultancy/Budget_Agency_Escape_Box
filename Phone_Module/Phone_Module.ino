@@ -36,13 +36,16 @@ stateType state = Idle;
 
 // GLOBAL VARIABLES
 const int ringerPins[] = {6, 7};
-const uint8_t maxPhoneNumber = 4; // Maximum phone number to accept. Above results in disconnect.
+const uint8_t maxPhoneNumber = 6; // Maximum phone number to accept. Above results in disconnect.
 uint8_t pulseCount = 0;           // Count of the amount of pulses observed while dialing.
 uint8_t currentDigit = 0;         // current digit of the number being Dialled.
 char number[maxPhoneNumber + 1];  // Phone number length plus terminal signal.
 
 bool checkReceive = true;
-unsigned long lastRingTime;
+unsigned long lastRingTime;       // Timestamp for ringing the bells while dialling.
+unsigned long dialStartTime;      // Start time to dial.
+unsigned long dialUpdateTime;     // UpdateTime to dial.
+unsigned long waitTimeTillConnect = 5000; // Wait time until a number gets sent.
 
 // FUNCTIONS
 void send_command(uint8_t id, uint8_t cmd) {
@@ -70,7 +73,7 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
   Serial.println(pl.cmd);
   if (pl.cmd == 0) Serial.println("TODO: Create start flag.");
   if (pl.cmd == 1) {
-    if (state == Idle) Serial.println("TODO: Create Ringing Code");
+    if (state == Idle) state = Ringing;
     else Serial.println("TODO: Create Message Queue");
   }
   if (pl.cmd == 2) state = Connected;
@@ -111,7 +114,6 @@ void setup() {
   pinMode(ringerPins[1], OUTPUT);
   digitalWrite(ringerPins[0], LOW);
   digitalWrite(ringerPins[1], LOW);
-
 }
 
 void loop() {
@@ -147,14 +149,17 @@ void loop() {
     case Dialtone:
       {
         if (dialSwitch.fell()) { // Start Dialling as soon as the dialSwitch is open.
-          send_command(PJON_Command_Id, 5);
+          send_command(PJON_Command_Id, 4);
           checkReceive = false;
+          dialStartTime = millis();
           state = Dialling;
         }
       }
       break;
 
     case Dialling:
+      dialUpdateTime = millis();
+
       if (numberSwitch.fell()) {
         pulseCount++;
       }
@@ -165,8 +170,6 @@ void loop() {
           pulseCount = 0;
         }
         number[currentDigit] = pulseCount | '0';
-
-        send_command(PJON_Command_Id, 10, number);
         currentDigit++;
         pulseCount = 0;
       }
@@ -178,6 +181,12 @@ void loop() {
 
       if (dialSwitch.fell()) {
         checkReceive = false;
+        dialStartTime = millis();
+      }
+
+      if (dialUpdateTime - dialStartTime > waitTimeTillConnect) {
+        send_command(PJON_Command_Id, 10, number);
+        state = Connected;
       }
       break;
 
