@@ -12,10 +12,13 @@
 #define PJON_Comm_Pin          25 // Communication pin for PJON on the target PLC.
 
 // MP3 initialization.
-#define MP3_RX_PIN              5     //GPIO5/D1
-#define MP3_TX_PIN              4     //GPIO4/D2
-#define MP3_SERIAL_SPEED        9600  //DFPlayer Mini suport only 9600-baud
-#define MP3_SERIAL_BUFFER_SIZE  32    //software serial buffer size in bytes, to send 8-bytes you need 11-bytes buffer (start byte+8-data bytes+parity-byte+stop-byte=11-bytes)
+#define MP3_RX_PIN              5     // GPIO5/D1
+#define MP3_TX_PIN              4     // GPIO4/D2
+#define MP3_SERIAL_SPEED        9600  // DFPlayer Mini suport only 9600-baud
+#define MP3_SERIAL_BUFFER_SIZE  32    // Software serial buffer size in bytes, to send 8-bytes you need 11-bytes buffer (start byte+8-data bytes+parity-byte+stop-byte=11-bytes)
+
+// Pin initialization.
+#define Start_Pin               12    // GPIO12. Pin for the start button.
 
 // PJON Bus Declaration.
 PJONSoftwareBitBang bus(PJON_Command_Id);
@@ -26,6 +29,9 @@ DFRobotDFPlayerMini mp3;
 
 // LCD initialization.
 LiquidCrystal_I2C lcd(0x27, 20, 4);
+
+// Bounce Switch Initialization.
+Bounce startSwitch = Bounce();
 
 // STRUCTS
 struct payLoad {
@@ -39,8 +45,11 @@ payLoad pl;
 
 // GLOBAL VARIABLES
 uint8_t mp3ToPlay = 4;
-unsigned long startDialTime;
-unsigned long currDialTime;
+unsigned long startDialTime;  // Start time of the dialling tone.
+unsigned long currDialTime;   // Current time of the dialling tone.
+
+typedef enum {Idle, Connecting, Connected, Dialling} phoneStateType;
+phoneStateType phoneState = Idle;
 
 // FUNCTIONS
 void send_command(uint8_t id, uint8_t cmd) {
@@ -57,6 +66,7 @@ void send_command(uint8_t id, uint8_t cmd, char msgLine[20]) {
   pl.cmd = cmd;
   bus.send(id, &pl, sizeof(pl));
 };
+
 
 void playDialMp3(uint8_t mp3ToPlay) {
   send_command(PJON_Phone_Id, 2);
@@ -91,7 +101,7 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
     }
     if (pl.cmd == 11) {             // Phone number entered is too big. Play disconnect song and set phone state to disconnect.
       mp3.loop(2);
-      send_command(19,3);
+      send_command(PJON_Phone_Id, 3);
     }
     if (pl.cmd == 12);              // Phone horn off the hook after Ringing State. Play suggested MP3.
   }
@@ -118,6 +128,11 @@ void setup() {
   mp3.EQ(DFPLAYER_EQ_NORMAL);
   mp3.outputDevice(DFPLAYER_DEVICE_SD);
 
+  // Start Button Pin and Switch Intialization.
+  pinMode(Start_Pin, INPUT_PULLUP);
+  startSwitch.attach(Start_Pin);
+  startSwitch.interval(20);
+
   // LCD Config Settings.
   lcd.init();
   lcd.setBacklight(100);
@@ -130,6 +145,8 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+  startSwitch.update();
+  
   bus.update();
   bus.receive(10000);
-}
+} 
