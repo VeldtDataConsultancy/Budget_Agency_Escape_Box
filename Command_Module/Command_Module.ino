@@ -44,11 +44,17 @@ payLoad pl;
 // CONSTANTS
 
 // GLOBAL VARIABLES
-uint8_t mp3ToPlay = 4;
+uint8_t       mp3ToPlay = 6;
 unsigned long startDialTime;  // Start time of the dialling tone.
 unsigned long currDialTime;   // Current time of the dialling tone.
+unsigned long connectedDelayStartTime; // No one starts talking right away. Slight delay before message starts.
+unsigned long connectedDelayCurrTime; // Current time of the delay.
+uint16_t      connectedDelay = 1500; // Steady delay time.
 
-typedef enum {Idle, Connecting, Connected, Dialling} phoneStateType;
+typedef enum {Start, Play, Ending} gameStateType;
+gameStateType gameState = Start;
+
+typedef enum {Idle, Connecting_Init, Connecting, Connected, Dialling, Disconnected} phoneStateType;
 phoneStateType phoneState = Idle;
 
 // FUNCTIONS
@@ -75,7 +81,7 @@ void playDialMp3(uint8_t mp3ToPlay) {
   mp3.play(3);
   uint16_t waitTime = (random(0, 8) * 1000) + 5000;
   while (currDialTime - startDialTime < waitTime) {
-    currDialTime = millis(); 
+    currDialTime = millis();
   }
   mp3.play(mp3ToPlay);
 }
@@ -94,8 +100,8 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
     if (pl.cmd == 3);               // Repeat button is pressed. Play the last played MP3.
     if (pl.cmd == 4) mp3.stop();    // Phone starts to dial. Stop the MP3 plpayer.
     if (pl.cmd == 10) {             // Phone number dialled. Check if it is correct.
-      if (strcmp(pl.msgLine,"12345")== 0) {
-        send_command(PJON_Phone_Id,2);
+      if (strcmp(pl.msgLine, "12345") == 0) {
+        send_command(PJON_Phone_Id, 2);
         playDialMp3(4);
       }
     }
@@ -104,6 +110,7 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
       send_command(PJON_Phone_Id, 3);
     }
     if (pl.cmd == 12);              // Phone horn off the hook after Ringing State. Play suggested MP3.
+    phoneState = Connecting_Init;
   }
 };
 
@@ -146,7 +153,54 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   startSwitch.update();
-  
+
+  switch (gameState) {
+    case Start:
+      if (startSwitch.fell()) {
+        Serial.println("startSwitch fell");
+        gameState = Play;
+      }
+      break;
+
+    case Play:
+      phoneState = Dialling;
+      gameState = Ending;
+      break;
+
+    case Ending:
+      break;
+  }
+
+  switch (phoneState) {
+    case Idle:
+      break;
+
+    case Connecting_Init:
+      connectedDelayStartTime = millis();
+      phoneState = Connected;
+      break;
+
+    case Connecting:
+      connectedDelayCurrTime = millis();
+      if (connectedDelayCurrTime - connectedDelayStartTime > connectedDelay) {
+        mp3.play(mp3ToPlay);
+        phoneState = Connected;
+      }
+      break;
+
+    case Connected:
+      Serial.println(mp3.readState()); //read mp3 state
+      break;
+
+    case Dialling:
+      send_command(PJON_Phone_Id, 1);
+      phoneState = Idle;
+      break;
+
+    case Disconnected:
+      break;
+  }
+
   bus.update();
   bus.receive(10000);
-} 
+}
