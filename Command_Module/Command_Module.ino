@@ -19,6 +19,7 @@
 
 // Pin initialization.
 #define Start_Pin               12    // GPIO12. Pin for the start button.
+#define Mp3_Pin                 13    // Pin to check if the Mp3 player is busy.
 
 // PJON Bus Declaration.
 PJONSoftwareBitBang bus(PJON_Command_Id);
@@ -40,7 +41,7 @@ struct payLoad {
 };
 
 // ENUMERATORS
-typedef enum {Idle_Init, Idle, Dialtone, Dialling, Connecting_Init, Connecting, Connected, Disconnected, Ringing} phoneStateType;
+typedef enum {Idle_Init, Idle, Dialtone, Connecting_Init, Connecting, Connected, Disconnected, Ringing} phoneStateType;
 phoneStateType phoneState = Idle;
 
 payLoad pl;
@@ -49,8 +50,10 @@ payLoad pl;
 
 // GLOBAL VARIABLES
 uint8_t mp3ToPlay = 4;
-unsigned long connectTime;       // Start time of the delay before the message is played.
+unsigned long connectTime;      // Start time of the delay before the message is played.
 uint16_t randomWaitTime;
+unsigned long ringDelayTime;    // Timer for the phone delay after picking up the horn. 
+uint16_t ringWaitTime = 1500;   // A slight delay of 1,5 seconds before an mp3 plays. Gives time to put the horn to the ear.
 
 // FUNCTIONS
 void send_command(uint8_t id, uint8_t cmd) {
@@ -77,21 +80,21 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
   Serial.println(pl.msgLine);
 
   if (packet_info.tx.id == 19) {
-    if (pl.cmd == 1) phoneState = Idle_Init;    // Phone horn went on the hook. State to idle. Stop the MP3 player.
-    if (pl.cmd == 2) phoneState = Dialtone;   // Phone horn went off the hook. Loop the dial tone.
-    if (pl.cmd == 3);               // Repeat button is pressed. Play the last played MP3.
-    if (pl.cmd == 4) phoneState = Idle_Init;    // Phone starts to dial. Stop the MP3 plpayer.
-    if (pl.cmd == 10) {             // Phone number dialled. Check if it is correct.
+    if (pl.cmd == 1) phoneState = Idle_Init;      // Phone horn went on the hook. State to idle. Stop the MP3 player.
+    if (pl.cmd == 2) phoneState = Dialtone;       // Phone horn went off the hook. Loop the dial tone.
+    if (pl.cmd == 3);                             // Repeat button is pressed. Play the last played MP3.
+    if (pl.cmd == 4) phoneState = Idle_Init;      // Phone starts to dial. Stop the MP3 plpayer.
+    if (pl.cmd == 10) {                           // Phone number dialled. Check if it is correct.
       if (strcmp(pl.msgLine, "12345") == 0) {
         mp3ToPlay = 6;
         phoneState = Connecting_Init;
       }
     }
-    if (pl.cmd == 11) {             // Phone number entered is too big. Play disconnect song and set phone state to disconnect.
-      mp3.loop(2);
-      send_command(PJON_Phone_Id, 3);
+    if (pl.cmd == 11) phoneState = Disconnected;  // Phone number entered is too big. Play disconnect song and set phone state to disconnect.
+    if (pl.cmd == 12) {             // Phone horn off the hook after Ringing State. Play suggested MP3.
+      ringDelayTime = millis();
+      phoneState = Ring_Connecting;
     }
-    if (pl.cmd == 12);              // Phone horn off the hook after Ringing State. Play suggested MP3.
   }
 };
 
@@ -120,6 +123,9 @@ void setup() {
   pinMode(Start_Pin, INPUT_PULLUP);
   startSwitch.attach(Start_Pin);
   startSwitch.interval(20);
+
+  // Pin to read from if the Mp3 player is busy.
+  pinMode(Mp3_Pin, INPUT);
 
   // LCD Config Settings.
   lcd.init();
@@ -156,17 +162,26 @@ void loop() {
       phoneState = Connecting;
       break;
 
+    case Ring_Connecting:
+      if (millis() - ringDelayTime > ringWaitTime) {
+        mp3.play(mp3ToPlay);
+        phoneState = Connected; 
+      } 
+      break;
+
     case Connecting:
       if (millis() - connectTime > randomWaitTime) {
         mp3.play(mp3ToPlay);
-        send_command(PJON_Phone_Id,2);
+        send_command(PJON_Phone_Id, 2);
         phoneState = Connected;
       }
       break;
 
     case Connected:
-      // TODO: Check if mp3 is done. If so, switch to Disconnected.
-      // send_command(PJON_Phone_Id,3);
+      if (digitalRead(Mp3_Pin) == 0) {
+        send_command(PJON_Phone_Id, 3);
+        phoneState = Disconnected;
+      }
       break;
 
     case Disconnected:
@@ -175,7 +190,7 @@ void loop() {
       break;
 
     case Ringing:
-      send_command(PJON_Phone_Id,1);
+      send_command(PJON_Phone_Id, 1);
       phoneState = Idle;
       break;
   }
