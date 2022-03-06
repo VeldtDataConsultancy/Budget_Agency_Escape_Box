@@ -39,17 +39,18 @@ struct payLoad {
   char msgLine[20];     // Character to send either phone number.
 };
 
+// ENUMERATORS
+typedef enum {Idle_Init, Idle, Dialtone, Dialling, Connecting_Init, Connecting, Connected, Disconnected, Ringing} phoneStateType;
+phoneStateType phoneState = Idle;
+
 payLoad pl;
 
 // CONSTANTS
 
 // GLOBAL VARIABLES
 uint8_t mp3ToPlay = 4;
-unsigned long startDialTime;  // Start time of the dialling tone.
-unsigned long currDialTime;   // Current time of the dialling tone.
-
-typedef enum {Idle, Connecting, Connected, Dialling} phoneStateType;
-phoneStateType phoneState = Idle;
+unsigned long connectTime;       // Start time of the delay before the message is played.
+uint16_t randomWaitTime;
 
 // FUNCTIONS
 void send_command(uint8_t id, uint8_t cmd) {
@@ -67,19 +68,6 @@ void send_command(uint8_t id, uint8_t cmd, char msgLine[20]) {
   bus.send(id, &pl, sizeof(pl));
 };
 
-
-void playDialMp3(uint8_t mp3ToPlay) {
-  send_command(PJON_Phone_Id, 2);
-  startDialTime = millis();
-  currDialTime = millis();
-  mp3.play(3);
-  uint16_t waitTime = (random(0, 8) * 1000) + 5000;
-  while (currDialTime - startDialTime < waitTime) {
-    currDialTime = millis(); 
-  }
-  mp3.play(mp3ToPlay);
-}
-
 // Receiver function to handle all incoming messages.
 void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info &packet_info) {
   // Read where the message is from.
@@ -89,14 +77,14 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
   Serial.println(pl.msgLine);
 
   if (packet_info.tx.id == 19) {
-    if (pl.cmd == 1) mp3.stop();    // Phone horn went on the hook. Stop the MP3 player.
-    if (pl.cmd == 2) mp3.loop(1);   // Phone horn went off the hook. Loop the dial tone.
+    if (pl.cmd == 1) phoneState = Idle_Init;    // Phone horn went on the hook. State to idle. Stop the MP3 player.
+    if (pl.cmd == 2) phoneState = Dialtone;   // Phone horn went off the hook. Loop the dial tone.
     if (pl.cmd == 3);               // Repeat button is pressed. Play the last played MP3.
-    if (pl.cmd == 4) mp3.stop();    // Phone starts to dial. Stop the MP3 plpayer.
+    if (pl.cmd == 4) phoneState = Idle_Init;    // Phone starts to dial. Stop the MP3 plpayer.
     if (pl.cmd == 10) {             // Phone number dialled. Check if it is correct.
-      if (strcmp(pl.msgLine,"12345")== 0) {
-        send_command(PJON_Phone_Id,2);
-        playDialMp3(4);
+      if (strcmp(pl.msgLine, "12345") == 0) {
+        mp3ToPlay = 6;
+        phoneState = Connecting_Init;
       }
     }
     if (pl.cmd == 11) {             // Phone number entered is too big. Play disconnect song and set phone state to disconnect.
@@ -146,7 +134,52 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   startSwitch.update();
-  
+
+  switch (phoneState) {
+    case Idle_Init:
+      mp3.stop();
+      phoneState = Idle;
+      break;
+
+    case Idle:
+      break;
+
+    case Dialtone:
+      mp3.loop(1);
+      phoneState = Idle;
+      break;
+
+    case Connecting_Init:
+      randomWaitTime = (random(4, 8) * 1000) + 4000;
+      connectTime = millis();
+      mp3.play(3);
+      phoneState = Connecting;
+      break;
+
+    case Connecting:
+      if (millis() - connectTime > randomWaitTime) {
+        mp3.play(mp3ToPlay);
+        send_command(PJON_Phone_Id,2);
+        phoneState = Connected;
+      }
+      break;
+
+    case Connected:
+      // TODO: Check if mp3 is done. If so, switch to Disconnected.
+      // send_command(PJON_Phone_Id,3);
+      break;
+
+    case Disconnected:
+      mp3.loop(2);
+      phoneState = Idle;
+      break;
+
+    case Ringing:
+      send_command(PJON_Phone_Id,1);
+      phoneState = Idle;
+      break;
+  }
+
   bus.update();
   bus.receive(10000);
-} 
+}

@@ -43,8 +43,7 @@ char number[maxPhoneNumber + 1];  // Phone number length plus terminal signal.
 
 bool checkReceive = true;
 unsigned long lastRingTime;       // Timestamp for ringing the bells while dialling.
-unsigned long dialStartTime;      // Start time to dial.
-unsigned long dialUpdateTime;     // UpdateTime to dial.
+unsigned long dialTime;      // Start time to dial.
 unsigned long waitTimeTillConnect = 5000; // Wait time until a number gets sent.
 
 // FUNCTIONS
@@ -151,15 +150,13 @@ void loop() {
         if (dialSwitch.fell()) { // Start Dialling as soon as the dialSwitch is open.
           send_command(PJON_Command_Id, 4);
           checkReceive = false;
-          dialStartTime = millis();
+          dialTime = millis();
           state = Dialling;
         }
       }
       break;
 
     case Dialling:
-      dialUpdateTime = millis();
-
       if (numberSwitch.fell()) {
         pulseCount++;
       }
@@ -181,10 +178,10 @@ void loop() {
 
       if (dialSwitch.fell()) {
         checkReceive = false;
-        dialStartTime = millis();
+        dialTime = millis();
       }
 
-      if (dialUpdateTime - dialStartTime > waitTimeTillConnect) {
+      if (millis() - dialTime > waitTimeTillConnect) {
         send_command(PJON_Command_Id, 10, number);
         state = Connected;
       }
