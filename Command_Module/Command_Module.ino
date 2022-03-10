@@ -19,7 +19,7 @@
 
 // Pin initialization.
 #define Start_Pin               12    // GPIO12. Pin for the start button.
-#define Mp3_Pin                 13    // Pin to check if the Mp3 player is busy.
+#define Mp3_Pin                 23    // Pin to check if the Mp3 player is busy.
 
 // PJON Bus Declaration.
 PJONSoftwareBitBang bus(PJON_Command_Id);
@@ -40,20 +40,20 @@ struct payLoad {
   char msgLine[20];     // Character to send either phone number.
 };
 
-// ENUMERATORS
-typedef enum {Idle_Init, Idle, Dialtone, Connecting_Init, Connecting, Connected, Disconnected, Ringing} phoneStateType;
-phoneStateType phoneState = Idle;
-
 payLoad pl;
+
+// ENUMERATORS
+typedef enum {Idle_Init, Idle, Dialtone, Connecting_Init, Ring_Connecting, Connecting, Connected, Disconnected, Ringing} phoneStateType;
+phoneStateType phoneState = Idle;
 
 // CONSTANTS
 
 // GLOBAL VARIABLES
-uint8_t mp3ToPlay = 4;
-unsigned long connectTime;      // Start time of the delay before the message is played.
-uint16_t randomWaitTime;
-unsigned long ringDelayTime;    // Timer for the phone delay after picking up the horn. 
-uint16_t ringWaitTime = 1500;   // A slight delay of 1,5 seconds before an mp3 plays. Gives time to put the horn to the ear.
+uint8_t       mp3ToPlay = 0;
+unsigned long connectTime;          // Start time of the delay before the message is played.
+uint16_t      randomWaitTime;
+unsigned long ringDelayTime;        // Timer for the phone delay after picking up the horn. 
+uint16_t      ringWaitTime = 1500;  // A slight delay of 1,5 seconds before an mp3 plays. Gives time to put the horn to the ear.
 
 // FUNCTIONS
 void send_command(uint8_t id, uint8_t cmd) {
@@ -80,11 +80,15 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
   Serial.println(pl.msgLine);
 
   if (packet_info.tx.id == 19) {
-    if (pl.cmd == 1) phoneState = Idle_Init;      // Phone horn went on the hook. State to idle. Stop the MP3 player.
-    if (pl.cmd == 2) phoneState = Dialtone;       // Phone horn went off the hook. Loop the dial tone.
-    if (pl.cmd == 3);                             // Repeat button is pressed. Play the last played MP3.
-    if (pl.cmd == 4) phoneState = Idle_Init;      // Phone starts to dial. Stop the MP3 plpayer.
-    if (pl.cmd == 10) {                           // Phone number dialled. Check if it is correct.
+    if (pl.cmd == 1) phoneState = Idle_Init;    // Phone horn went on the hook. State to idle. Stop the MP3 player.
+    if (pl.cmd == 2) phoneState = Dialtone;     // Phone horn went off the hook. Loop the dial tone.
+    if (pl.cmd == 3) {                          // Repeat button is pressed. Play the last played MP3.
+      if (mp3ToPlay != 0) {
+        phoneState = Ringing;
+      }
+    }
+    if (pl.cmd == 4) phoneState = Idle_Init;    // Phone starts to dial. Stop the MP3 plpayer.
+    if (pl.cmd == 10) {                         // Phone number dialled. Check if it is correct.
       if (strcmp(pl.msgLine, "12345") == 0) {
         mp3ToPlay = 6;
         phoneState = Connecting_Init;
@@ -165,7 +169,9 @@ void loop() {
     case Ring_Connecting:
       if (millis() - ringDelayTime > ringWaitTime) {
         mp3.play(mp3ToPlay);
-        phoneState = Connected; 
+        send_command(PJON_Phone_Id, 2);
+        phoneState = Connected;
+        delay(20); 
       } 
       break;
 
@@ -174,11 +180,13 @@ void loop() {
         mp3.play(mp3ToPlay);
         send_command(PJON_Phone_Id, 2);
         phoneState = Connected;
+        delay(20);
       }
       break;
 
     case Connected:
-      if (digitalRead(Mp3_Pin) == 0) {
+      Serial.println(digitalRead(Mp3_Pin));
+      if (digitalRead(Mp3_Pin) == 1) {
         send_command(PJON_Phone_Id, 3);
         phoneState = Disconnected;
       }
