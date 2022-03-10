@@ -175,7 +175,6 @@ void loop() {
       break;
 
     case Connected:
-      Serial.println(digitalRead(Mp3_Pin));
       if (digitalRead(Mp3_Pin) == 1) {
         send_command(PJON_Phone_Id, 3);
         phoneState = Disconnected;
