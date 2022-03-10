@@ -43,17 +43,15 @@ struct payLoad {
 payLoad pl;
 
 // ENUMERATORS
-typedef enum {Idle_Init, Idle, Dialtone, Connecting_Init, Ring_Connecting, Connecting, Connected, Disconnected, Ringing} phoneStateType;
+typedef enum {Idle_Init, Idle, Dialtone, Connecting_Init, Connecting, Connected, Disconnected, Ringing} phoneStateType;
 phoneStateType phoneState = Idle;
 
 // CONSTANTS
 
 // GLOBAL VARIABLES
 uint8_t       mp3ToPlay = 0;
-unsigned long connectTime;          // Start time of the delay before the message is played.
-uint16_t      randomWaitTime;
-unsigned long ringDelayTime;        // Timer for the phone delay after picking up the horn. 
-uint16_t      ringWaitTime = 1500;  // A slight delay of 1,5 seconds before an mp3 plays. Gives time to put the horn to the ear.
+unsigned long ringDelayTime;       // Start time of the delay before the message is played. 
+uint16_t      ringWaitTime;        // A slight delay of 1,5 seconds before an mp3 plays. Gives time to put the horn to the ear.
 
 // FUNCTIONS
 void send_command(uint8_t id, uint8_t cmd) {
@@ -91,13 +89,15 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
     if (pl.cmd == 10) {                         // Phone number dialled. Check if it is correct.
       if (strcmp(pl.msgLine, "12345") == 0) {
         mp3ToPlay = 6;
+        ringWaitTime = (random(4, 8) * 1000) + 4000;
         phoneState = Connecting_Init;
       }
     }
     if (pl.cmd == 11) phoneState = Disconnected;  // Phone number entered is too big. Play disconnect song and set phone state to disconnect.
     if (pl.cmd == 12) {             // Phone horn off the hook after Ringing State. Play suggested MP3.
       ringDelayTime = millis();
-      phoneState = Ring_Connecting;
+      ringWaitTime = 1500;
+      phoneState = Connecting;
     }
   }
 };
@@ -160,23 +160,13 @@ void loop() {
       break;
 
     case Connecting_Init:
-      randomWaitTime = (random(4, 8) * 1000) + 4000;
-      connectTime = millis();
+      ringDelayTime = millis();
       mp3.play(3);
       phoneState = Connecting;
       break;
 
-    case Ring_Connecting:
-      if (millis() - ringDelayTime > ringWaitTime) {
-        mp3.play(mp3ToPlay);
-        send_command(PJON_Phone_Id, 2);
-        phoneState = Connected;
-        delay(20); 
-      } 
-      break;
-
     case Connecting:
-      if (millis() - connectTime > randomWaitTime) {
+      if (millis() - ringDelayTime > ringWaitTime) {
         mp3.play(mp3ToPlay);
         send_command(PJON_Phone_Id, 2);
         phoneState = Connected;
