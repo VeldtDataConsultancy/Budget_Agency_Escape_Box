@@ -92,6 +92,9 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
         ringWaitTime = (random(4, 8) * 1000) + 4000;
         phoneState = Connecting_Init;
       }
+      else {
+        phoneState = Disconnected;
+      }
     }
     if (pl.cmd == 11) phoneState = Disconnected;  // Phone number entered is too big. Play disconnect song and set phone state to disconnect.
     if (pl.cmd == 12) {             // Phone horn off the hook after Ringing State. Play suggested MP3.
