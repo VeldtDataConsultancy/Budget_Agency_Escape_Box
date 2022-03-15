@@ -53,7 +53,52 @@ int32_t clockSec;             // Current second in the game.
 int32_t oldSec;               // Previous second of the game
 char timeString[20];          // String to display the time on the LCD screen.
 
+// Script response array. Parameters needed to give a response to the user.
+// Parameters:
+// 1 = Step of the script.
+// 2 = Number of the PJON to send a command to.
+// 3 = Command to send to the PJON.
+// 4 = Optional variable to make use in different situations. 
+uint8_t gameResponse[][5] = {0,19,1,6};
+
+// Script action array. Correct parameters needed from the user to advance the game.
+typedef struct {
+  uint8_t actionStep;
+  uint8_t PJON_id;
+  char parameter[20];
+} action;
+
+action gameAction[1] = {0,19,"17358"};
+
+uint8_t scriptStep = 0;       // Script step for the game. Each succesfull answer adds one point with different solutions.
+bool actResponse = true;      // Start story with a response or an action.
+bool gameStart = false;
+
 // FUNCTIONS
+void scriptResponse() {
+  for (int i = 0;i < sizeof gameResponse / sizeof gameResponse[0];i++) {
+    if(gameResponse[i][0] == scriptStep) {
+      send_command(gameResponse[i][1],gameResponse[i][2]);
+      if(gameResponse[i][1] == 19) {
+        mp3ToPlay = gameResponse[i][3];
+      }
+    }
+  }
+}
+
+void scriptAction(uint8_t id, char parameter[20]) {
+  for(int i = 0; i < sizeof gameAction / sizeof gameAction[0]; i++) {
+    if (gameAction[i].actionStep == scriptStep) {
+      if (gameAction[i].PJON_id == id) {
+        if (strcmp(gameAction[i].parameter, parameter) == 0) {
+          scriptStep++;
+          scriptResponse();
+        }
+      }
+    }
+  }
+}
+
 void send_command(uint8_t id, uint8_t cmd) {
   // A function that handles all the messaging to the command module.
   payLoad pl;
@@ -143,6 +188,11 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   startSwitch.update();
+
+  if (startSwitch.rose() && gameStart == false) {
+    scriptResponse();
+    gameStart = true;
+  }
 
   clockSec = (millis() - startTime) / 1000;
 
