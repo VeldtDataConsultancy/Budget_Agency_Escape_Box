@@ -1,7 +1,5 @@
 // Command module running on an ESP32.
-#include <Wire.h>
 #include <SoftwareSerial.h>
-#include <LiquidCrystal_I2C.h>
 #include <Bounce2.h>
 #include <PJONSoftwareBitBang.h>
 #include "DFRobotDFPlayerMini.h"
@@ -28,9 +26,6 @@ PJONSoftwareBitBang bus(PJON_Command_Id);
 SoftwareSerial mp3Serial; // RX, TX
 DFRobotDFPlayerMini mp3;
 
-// LCD initialization.
-LiquidCrystal_I2C lcd(0x27, 20, 4);
-
 // Bounce Switch Initialization.
 Bounce startSwitch = Bounce();
 
@@ -49,15 +44,21 @@ phoneStateType phoneState = Idle;
 // CONSTANTS
 
 // GLOBAL VARIABLES
-uint8_t       mp3ToPlay = 0;
-unsigned long ringDelayTime;       // Start time of the delay before the message is played. 
-uint16_t      ringWaitTime;        // A slight delay of 1,5 seconds before an mp3 plays. Gives time to put the horn to the ear.
+uint8_t mp3ToPlay = 0;        // Mp3 number that needs to be heard.
+unsigned long ringDelayTime;  // Start time of the delay before the message is played.
+uint16_t ringWaitTime;        // A slight delay of 1,5 seconds before an mp3 plays. Gives time to put the horn to the ear.
+
+unsigned long startTime;      // Start time of the game. Used to display the timer.
+int32_t clockSec;             // Current second in the game.
+int32_t oldSec;               // Previous second of the game
+char timeString[20];          // String to display the time on the LCD screen.
 
 // FUNCTIONS
 void send_command(uint8_t id, uint8_t cmd) {
   // A function that handles all the messaging to the command module.
   payLoad pl;
   pl.cmd = cmd;
+  Serial.println("Message Sent without line");
   bus.send(id, &pl, sizeof(pl));
 };
 
@@ -66,6 +67,7 @@ void send_command(uint8_t id, uint8_t cmd, char msgLine[20]) {
   payLoad pl;
   strcpy(pl.msgLine , msgLine);
   pl.cmd = cmd;
+  Serial.println("Message Sent with line");
   bus.send(id, &pl, sizeof(pl));
 };
 
@@ -134,19 +136,25 @@ void setup() {
   // Pin to read from if the Mp3 player is busy.
   pinMode(Mp3_Pin, INPUT);
 
-  // LCD Config Settings.
-  lcd.init();
-  lcd.setBacklight(100);
-  delay(100);
-  lcd.print("Console v0.1");
-  lcd.setCursor(0, 3);
-  String msgLine = "Test if it works.";
-  lcd.print(msgLine);
+  // Start the game time.
+  startTime = millis();
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   startSwitch.update();
+
+  clockSec = (millis() - startTime) / 1000;
+
+  if (clockSec != oldSec) {
+    int sec = clockSec % 60;
+    int mint = clockSec / 60 % 60;
+    int hr = clockSec / 3600;
+
+    sprintf(timeString, "Time: %02d:%02d:%02d", hr, mint, sec);
+    Serial.println(timeString);
+    oldSec = clockSec;
+  }
 
   switch (phoneState) {
     case Idle_Init:
