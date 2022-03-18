@@ -1,7 +1,7 @@
 // Command module running on an ESP32.
-#include <SoftwareSerial.h>
 #include <Bounce2.h>
 #include <PJONSoftwareBitBang.h>
+#include <SoftwareSerial.h>
 #include "DFRobotDFPlayerMini.h"
 
 // PJON initialization.
@@ -17,6 +17,7 @@
 
 // Pin initialization.
 #define Start_Pin               12    // GPIO12. Pin for the start button.
+#define Audio_Pin               2     // GPIO2. Pin for controlling the Reed-Relay that handles the audio output.
 #define Mp3_Pin                 23    // Pin to check if the Mp3 player is busy.
 
 // PJON Bus Declaration.
@@ -54,21 +55,23 @@ int32_t oldSec;               // Previous second of the game
 char timeString[20];          // String to display the time on the LCD screen.
 
 // Script response array. Parameters needed to give a response to the user.
-// Parameters:
-// 1 = Step of the script.
-// 2 = Number of the PJON to send a command to.
-// 3 = Command to send to the PJON.
-// 4 = Optional variable to make use in different situations. 
-uint8_t gameResponse[][5] = {0,19,1,6};
+typedef struct {
+  uint8_t scriptStep; // Step of the script.
+  uint8_t PJON_Id;    // Number of the PJON to send a command to.
+  uint8_t cmd;        // Command to send to the PJON.
+  uint8_t parameter;  // Optional variable to make use in different situations.
+} _response;
+
+_response gameResponse[1] = {0, 19, 1, 6};
 
 // Script action array. Correct parameters needed from the user to advance the game.
 typedef struct {
   uint8_t actionStep;
   uint8_t PJON_id;
   char parameter[20];
-} action;
+} _action;
 
-action gameAction[1] = {0,19,"17358"};
+_action gameAction[1] = {0, 19, "17358"};
 
 uint8_t scriptStep = 0;       // Script step for the game. Each succesfull answer adds one point with different solutions.
 bool actResponse = true;      // Start story with a response or an action.
@@ -76,18 +79,19 @@ bool gameStart = false;
 
 // FUNCTIONS
 void scriptResponse() {
-  for (int i = 0;i < sizeof gameResponse / sizeof gameResponse[0];i++) {
-    if(gameResponse[i][0] == scriptStep) {
-      send_command(gameResponse[i][1],gameResponse[i][2]);
-      if(gameResponse[i][1] == 19) {
-        mp3ToPlay = gameResponse[i][3];
+  for (int i = 0; i < sizeof gameResponse / sizeof gameResponse[0]; i++) {
+    if (gameResponse[i].scriptStep == scriptStep) {
+      send_command(gameResponse[i].PJON_Id, gameResponse[i].cmd);
+      if (gameResponse[i].PJON_Id == 19) {
+        mp3ToPlay = gameResponse[i].parameter;
       }
     }
   }
 }
 
-void scriptAction(uint8_t id, char parameter[20]) {
-  for(int i = 0; i < sizeof gameAction / sizeof gameAction[0]; i++) {
+// Check if a given answer from the Escape Box is correct or not in the time of the script.
+bool scriptAction(uint8_t id, char parameter[20]) {
+  for (int i = 0; i < sizeof gameAction / sizeof gameAction[0]; i++) {
     if (gameAction[i].actionStep == scriptStep) {
       if (gameAction[i].PJON_id == id) {
         if (strcmp(gameAction[i].parameter, parameter) == 0) {
@@ -103,7 +107,6 @@ void send_command(uint8_t id, uint8_t cmd) {
   // A function that handles all the messaging to the command module.
   payLoad pl;
   pl.cmd = cmd;
-  Serial.println("Message Sent without line");
   bus.send(id, &pl, sizeof(pl));
 };
 
@@ -112,9 +115,21 @@ void send_command(uint8_t id, uint8_t cmd, char msgLine[20]) {
   payLoad pl;
   strcpy(pl.msgLine , msgLine);
   pl.cmd = cmd;
-  Serial.println("Message Sent with line");
   bus.send(id, &pl, sizeof(pl));
 };
+
+// Function for playing mp3's.
+void play_audio(uint8_t audioNum, bool output, bool playLoop) {
+  digitalWrite(Audio_Pin, output);
+  if (playLoop == true) mp3.loop(audioNum);
+  else mp3.play(audioNum);
+};
+
+// Function to stop mp3's.
+void stop_audio() {
+  digitalWrite(Audio_Pin, LOW);
+  mp3.stop();
+}
 
 // Receiver function to handle all incoming messages.
 void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info &packet_info) {
@@ -178,8 +193,8 @@ void setup() {
   startSwitch.attach(Start_Pin);
   startSwitch.interval(20);
 
-  // Pin to read from if the Mp3 player is busy.
-  pinMode(Mp3_Pin, INPUT);
+  pinMode(Mp3_Pin, INPUT);    // Pin to read from if the Mp3 player is busy.
+  pinMode(Audio_Pin, OUTPUT); // Pin to control the Reed-Relay.
 
   // Start the game time.
   startTime = millis();
@@ -208,7 +223,7 @@ void loop() {
 
   switch (phoneState) {
     case Idle_Init:
-      mp3.stop();
+      stop_audio();
       phoneState = Idle;
       break;
 
@@ -216,19 +231,19 @@ void loop() {
       break;
 
     case Dialtone:
-      mp3.loop(1);
+      play_audio(1, false, true);
       phoneState = Idle;
       break;
 
     case Connecting_Init:
       ringDelayTime = millis();
-      mp3.play(3);
+      play_audio(1, false, false);
       phoneState = Connecting;
       break;
 
     case Connecting:
       if (millis() - ringDelayTime > ringWaitTime) {
-        mp3.play(mp3ToPlay);
+        play_audio(mp3ToPlay, false, false);
         send_command(PJON_Phone_Id, 2);
         phoneState = Connected;
         delay(20);
@@ -236,14 +251,14 @@ void loop() {
       break;
 
     case Connected:
-      if (digitalRead(Mp3_Pin) == 1) {
+      if (digitalRead(Mp3_Pin) == 1) {    // Hardware check to see if the MP3 is done playing. If so, set phone to disconnected.
         send_command(PJON_Phone_Id, 3);
         phoneState = Disconnected;
       }
       break;
 
     case Disconnected:
-      mp3.loop(2);
+      play_audio(2, false, true);
       phoneState = Idle;
       break;
 
