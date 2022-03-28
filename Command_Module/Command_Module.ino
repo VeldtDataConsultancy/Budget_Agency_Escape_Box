@@ -17,8 +17,9 @@
 
 // Pin initialization.
 #define Start_Pin               12    // GPIO12. Pin for the start button.
-#define Audio_Pin               2     // GPIO2. Pin for controlling the Reed-Relay that handles the audio output.
+#define Audio_Pin               15    // GPIO2. Pin for controlling the Reed-Relay that handles the audio output.
 #define Mp3_Pin                 23    // Pin to check if the Mp3 player is busy.
+#define Audiorelay_Pin          14    // Pin to check if an audio for a Phone needs to be relayed to the speaker or horn.
 
 // PJON Bus Declaration.
 PJONSoftwareBitBang bus(PJON_Command_Id);
@@ -28,7 +29,7 @@ SoftwareSerial mp3Serial; // RX, TX
 DFRobotDFPlayerMini mp3;
 
 // Bounce Switch Initialization.
-Bounce startSwitch = Bounce();
+Bounce startSwitch = Bounce(); // Bounce object for the start button.
 
 // STRUCTS
 struct payLoad {
@@ -39,7 +40,7 @@ struct payLoad {
 payLoad pl;
 
 // ENUMERATORS
-typedef enum {Idle_Init, Idle, Dialtone, Connecting_Init, Connecting, Connected, Disconnected, Ringing} phoneStateType;
+typedef enum {Idle_Init, Idle, Operation, Dialtone, Connecting_Init, Connecting, Connected, Disconnected, Ringing} phoneStateType;
 phoneStateType phoneState = Idle;
 
 // CONSTANTS
@@ -48,6 +49,7 @@ phoneStateType phoneState = Idle;
 uint8_t mp3ToPlay = 0;        // Mp3 number that needs to be heard.
 unsigned long ringDelayTime;  // Start time of the delay before the message is played.
 uint16_t ringWaitTime;        // A slight delay of 1,5 seconds before an mp3 plays. Gives time to put the horn to the ear.
+bool phoneInUse = false;      // Whether an Mp3 has a phone purpose or not. Needed to identify the audio to relay to speaker.
 
 unsigned long startTime;      // Start time of the game. Used to display the timer.
 int32_t clockSec;             // Current second in the game.
@@ -60,21 +62,23 @@ typedef struct {
   uint8_t PJON_Id;    // Number of the PJON to send a command to.
   uint8_t cmd;        // Command to send to the PJON.
   uint8_t parameter;  // Optional variable to make use in different situations.
-} _response;
+} arrayResponse;
 
-_response gameResponse[1] = {0, 19, 1, 6};
+arrayResponse gameResponse[] = {
+  {0, 19, 1, 6},
+  {1, 19, 2, 5}
+  };
 
 // Script action array. Correct parameters needed from the user to advance the game.
 typedef struct {
   uint8_t actionStep;
   uint8_t PJON_id;
   char parameter[20];
-} _action;
+} arrayAction;
 
-_action gameAction[1] = {0, 19, "17358"};
+arrayAction gameAction[] = {0, 19, "17358"};
 
 uint8_t scriptStep = 0;       // Script step for the game. Each succesfull answer adds one point with different solutions.
-bool actResponse = true;      // Start story with a response or an action.
 bool gameStart = false;
 
 // FUNCTIONS
@@ -90,17 +94,21 @@ void scriptResponse() {
 }
 
 // Check if a given answer from the Escape Box is correct or not in the time of the script.
+// If the answer is correct, check the Response that needs to follow.
+// If the answer is wrong, don't do anything (for now).
 bool scriptAction(uint8_t id, char parameter[20]) {
+  bool scriptAction = false;
   for (int i = 0; i < sizeof gameAction / sizeof gameAction[0]; i++) {
     if (gameAction[i].actionStep == scriptStep) {
       if (gameAction[i].PJON_id == id) {
         if (strcmp(gameAction[i].parameter, parameter) == 0) {
           scriptStep++;
-          scriptResponse();
+          bool scriptAction = true;
         }
       }
     }
   }
+  return scriptAction;
 }
 
 void send_command(uint8_t id, uint8_t cmd) {
@@ -119,8 +127,11 @@ void send_command(uint8_t id, uint8_t cmd, char msgLine[20]) {
 };
 
 // Function for playing mp3's.
-void play_audio(uint8_t audioNum, bool output, bool playLoop) {
-  digitalWrite(Audio_Pin, output);
+// audioNum = Which mp3 to play.
+// phoneAudio: True = Phone False = Speaker. Phone audio can be re-routed to the Speaker.
+// playLoop: True = Play mp3 in Loop. False = Play mp3 once.
+void play_audio(uint8_t audioNum, bool phoneInUse, bool playLoop) {
+  digitalWrite(Audio_Pin, phoneInUse);
   if (playLoop == true) mp3.loop(audioNum);
   else mp3.play(audioNum);
 };
@@ -149,10 +160,9 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
     }
     if (pl.cmd == 4) phoneState = Idle_Init;    // Phone starts to dial. Stop the MP3 plpayer.
     if (pl.cmd == 10) {                         // Phone number dialled. Check if it is correct.
-      if (strcmp(pl.msgLine, "12345") == 0) {
-        mp3ToPlay = 6;
-        ringWaitTime = (random(4, 8) * 1000) + 4000;
-        phoneState = Connecting_Init;
+      if (bool checkAnswer = scriptAction(packet_info.tx.id, pl.msgLine) == true) 
+      {
+        scriptResponse();
       }
       else {
         phoneState = Disconnected;
@@ -193,6 +203,8 @@ void setup() {
   startSwitch.attach(Start_Pin);
   startSwitch.interval(20);
 
+  // Other Pin Modes.
+  pinMode(Audiorelay_Pin, INPUT_PULLUP);
   pinMode(Mp3_Pin, INPUT);    // Pin to read from if the Mp3 player is busy.
   pinMode(Audio_Pin, OUTPUT); // Pin to control the Reed-Relay.
 
@@ -209,20 +221,12 @@ void loop() {
     gameStart = true;
   }
 
-  clockSec = (millis() - startTime) / 1000;
-
-  if (clockSec != oldSec) {
-    int sec = clockSec % 60;
-    int mint = clockSec / 60 % 60;
-    int hr = clockSec / 3600;
-
-    sprintf(timeString, "Time: %02d:%02d:%02d", hr, mint, sec);
-    Serial.println(timeString);
-    oldSec = clockSec;
-  }
+  if (digitalRead(Audiorelay_Pin) == 0 && phoneInUse == true) digitalWrite(Audio_Pin,HIGH);
+  if (digitalRead(Audiorelay_Pin) == 1) digitalWrite(Audio_Pin,LOW);
 
   switch (phoneState) {
     case Idle_Init:
+      phoneInUse = false;
       stop_audio();
       phoneState = Idle;
       break;
@@ -230,20 +234,24 @@ void loop() {
     case Idle:
       break;
 
+    case Operation:
+      break;
+
     case Dialtone:
-      play_audio(1, false, true);
-      phoneState = Idle;
+      phoneInUse = true;
+      play_audio(1, true, true);
+      phoneState = Operation;
       break;
 
     case Connecting_Init:
       ringDelayTime = millis();
-      play_audio(1, false, false);
+      play_audio(1, true, false);
       phoneState = Connecting;
       break;
 
     case Connecting:
       if (millis() - ringDelayTime > ringWaitTime) {
-        play_audio(mp3ToPlay, false, false);
+        play_audio(mp3ToPlay, true, false);
         send_command(PJON_Phone_Id, 2);
         phoneState = Connected;
         delay(20);
@@ -259,12 +267,13 @@ void loop() {
 
     case Disconnected:
       play_audio(2, false, true);
-      phoneState = Idle;
+      phoneState = Operation;
       break;
 
     case Ringing:
+      phoneInUse = true;
       send_command(PJON_Phone_Id, 1);
-      phoneState = Idle;
+      phoneState = Operation;
       break;
   }
 
