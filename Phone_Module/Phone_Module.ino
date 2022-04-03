@@ -31,7 +31,7 @@ struct payLoad {
 payLoad pl;
 
 // ENUMERATORS
-typedef enum {Idle, Dialtone, Dialling, Connected, Disconnected, Ringing} stateType;
+typedef enum {Idle, Dialtone, Dialling, Connected, Disconnected, Ringing_Init, Ringing} stateType;
 stateType state = Idle;
 
 // GLOBAL VARIABLES
@@ -71,10 +71,7 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
   memcpy(&pl, payload, sizeof(pl));
   Serial.println(pl.cmd);
   if (pl.cmd == 0) Serial.println("TODO: Create start flag.");
-  if (pl.cmd == 1) {
-    if (state == Idle) state = Ringing;
-    else Serial.println("TODO: Create Message Queue");
-  }
+  if (pl.cmd == 1) state = Ringing_Init;
   if (pl.cmd == 2) state = Connected;
   if (pl.cmd == 3) state = Disconnected;
 };
@@ -193,6 +190,10 @@ void loop() {
     case Disconnected:
       break;
 
+    case Ringing_Init:
+      send_command(PJON_Command_Id, 12);
+      state = Ringing;
+
     case Ringing:
       int nu = millis();
       if (nu - lastRingTime > 4000) {
@@ -215,7 +216,7 @@ void loop() {
       }
       if (hookSwitch.fell()) {
         state = Connected;
-        send_command(PJON_Command_Id, 12);
+        send_command(PJON_Command_Id, 13);
       }
       break;
   }
