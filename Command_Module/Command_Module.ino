@@ -40,8 +40,10 @@ struct payLoad {
 payLoad pl;
 
 // ENUMERATORS
-typedef enum {Idle_Init, Idle, Dialtone, Connecting_Init, Connecting, Connected, Disconnected, Repeat_Pushed, Ringing} phoneStateType;
+typedef enum {Idle_Init, Idle, Dialtone, Dialling, Connecting_Init, Connecting, Connected, Disconnected, Repeat_Pushed, Ringing} phoneStateType;
 phoneStateType phoneState = Idle;
+
+phoneStateType oldPhoneState;
 
 // CONSTANTS
 
@@ -50,6 +52,7 @@ uint8_t mp3ToPlay = 0;        // Mp3 number that needs to be heard.
 unsigned long ringDelayTime;  // Start time of the delay before the message is played.
 uint16_t ringWaitTime;        // A slight delay of 1,5 seconds before an mp3 plays. Gives time to put the horn to the ear.
 bool phoneInUse = false;      // Whether an Mp3 has a phone purpose or not. Needed to identify the audio to relay to speaker.
+bool oldPhoneInUse;
 
 // Script response array. Parameters needed to give a response to the user.
 typedef struct {
@@ -166,7 +169,7 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
         phoneState = Repeat_Pushed;
       }
     }
-    if (pl.cmd == 4) phoneState = Idle_Init;    // Phone starts to dial. Stop the MP3 plpayer.
+    if (pl.cmd == 4) phoneState = Dialling;    // Phone starts to dial. Stop the MP3 plpayer but keep phone active.
     if (pl.cmd == 10) {                         // Phone number dialled. Check if it is correct.
       bool checkAnswer = scriptAction(packet_info.tx.id, pl.msgLine);
       if (checkAnswer == true) {
@@ -223,7 +226,7 @@ void setup() {
   digitalWrite(Audio_Pin, LOW);
 }
 
-void loop() {  
+void loop() {
   // put your main code here, to run repeatedly:
   startSwitch.update();
 
@@ -235,9 +238,12 @@ void loop() {
   switch (phoneState) {
     case Idle_Init:
       phoneInUse = false;
+      phoneState = Dialling;
+      break;
+
+    case Dialling:
       stop_audio();
       phoneState = Idle;
-      break;
 
     case Idle:
       break;
@@ -279,13 +285,23 @@ void loop() {
       phoneInUse = true;
       send_command(PJON_Phone_Id, 1);
       phoneState = Ringing;
-    break;
+      break;
 
     case Ringing:
       phoneInUse = true;
       phoneState = Idle;
       break;
   }
+
+  if (oldPhoneState != phoneState || oldPhoneInUse != phoneInUse) {
+    Serial.print("Phone State: ");
+    Serial.print(phoneState);
+    Serial.print(" Phone in Use: ");
+    Serial.println(phoneInUse);
+  }
+
+  oldPhoneState = phoneState;
+  oldPhoneInUse = phoneInUse;
 
   bus.update();
   bus.receive(10000);
