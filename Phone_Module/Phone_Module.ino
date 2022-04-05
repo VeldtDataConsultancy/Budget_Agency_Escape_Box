@@ -137,6 +137,7 @@ void loop() {
         }
 
         if (repeatSwitch.fell()) { // if repeat button is pressed, send signal to command.
+          state = Ringing;
           send_command(PJON_Command_Id, 3);
         }
       }
