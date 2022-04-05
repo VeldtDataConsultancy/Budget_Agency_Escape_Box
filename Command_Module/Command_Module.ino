@@ -40,7 +40,7 @@ struct payLoad {
 payLoad pl;
 
 // ENUMERATORS
-typedef enum {Idle_Init, Idle, Dialtone, Dialling, Connecting_Init, Connecting, Connected, Disconnected, Repeat_Pushed, Ringing} phoneStateType;
+typedef enum {Idle_Init, Idle, Dialtone, Dialling, Connecting_Init, Connecting, Connected, Disconnected, Ringing} phoneStateType;
 phoneStateType phoneState = Idle;
 
 phoneStateType oldPhoneState;
@@ -85,16 +85,13 @@ void scriptResponse() {
     if (gameResponse[i].scriptStep == scriptStep) {
       send_command(gameResponse[i].PJON_Id, gameResponse[i].cmd);
       if (gameResponse[i].PJON_Id == 19) {
-        Serial.print("Phone in Use: ");
-        Serial.println(phoneInUse);
         if (phoneInUse == true) {
           ringWaitTime = (random(1, 5) * 1000) + 7000;
-          Serial.print(ringWaitTime);
           mp3ToPlay = gameResponse[i].parameter;
           phoneState = Connecting_Init;
         }
         else {
-          mp3ToPlay = gameResponse[i].parameter;
+          mp3ToPlay = gameResponse[i].parameter; // TODO: Create queue.
         }
       }
     }
@@ -125,14 +122,14 @@ bool scriptAction(uint8_t id, char parameter[20]) {
 }
 
 void send_command(uint8_t id, uint8_t cmd) {
-  // A function that handles all the messaging to the command module.
+  // A function that handles all the messaging to the other modules.
   payLoad pl;
   pl.cmd = cmd;
   bus.send(id, &pl, sizeof(pl));
 };
 
 void send_command(uint8_t id, uint8_t cmd, char msgLine[20]) {
-  // A function that handles all the messaging to the command module.
+  // A function that handles all the messaging to the other modules.
   payLoad pl;
   strcpy(pl.msgLine , msgLine);
   pl.cmd = cmd;
@@ -141,7 +138,7 @@ void send_command(uint8_t id, uint8_t cmd, char msgLine[20]) {
 
 // Function for playing mp3's.
 // audioNum = Which mp3 to play.
-// phoneAudio: True = Phone False = Speaker. Phone audio can be re-routed to the Speaker.
+// TODO: phoneAudio: True = Phone False = Speaker. Phone audio can be re-routed to the Speaker.
 // playLoop: True = Play mp3 in Loop. False = Play mp3 once.
 void play_audio(uint8_t audioNum, bool playLoop) {
   if (playLoop == true) mp3.loop(audioNum);
@@ -166,7 +163,7 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
     if (pl.cmd == 2) phoneState = Dialtone;     // Phone horn went off the hook. Loop the dial tone.
     if (pl.cmd == 3) {                          // Repeat button is pressed. Play the last played MP3.
       if (mp3ToPlay != 0) {
-        phoneState = Repeat_Pushed;
+        phoneState = Ringing;
       }
     }
     if (pl.cmd == 4) phoneState = Dialling;    // Phone starts to dial. Stop the MP3 plpayer but keep phone active.
@@ -180,8 +177,8 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
       }
     }
     if (pl.cmd == 11) phoneState = Disconnected;  // Phone number entered is too big. Play disconnect song and set phone state to disconnect.
-    if (pl.cmd == 12) phoneState = Ringing; // Phone is ringing. Send command phone state to ringing as well.
-    if (pl.cmd == 13) {             // Phone horn off the hook after Ringing State. Play suggested MP3.
+    if (pl.cmd == 12) phoneState = Ringing;       // Phone is ringing. Send command phone state to ringing as well.
+    if (pl.cmd == 13) {                           // Phone horn off the hook after Ringing State. Play suggested MP3.
       ringDelayTime = millis();
       ringWaitTime = 1500;
       phoneState = Connecting;
@@ -238,8 +235,6 @@ void loop() {
   switch (phoneState) {
     case Idle_Init:
       phoneInUse = false;
-      phoneState = Dialling;
-      break;
 
     case Dialling:
       stop_audio();
@@ -281,28 +276,11 @@ void loop() {
       phoneState = Idle;
       break;
 
-    case Repeat_Pushed:
-      phoneInUse = true;
-      send_command(PJON_Phone_Id, 1);
-      phoneState = Ringing;
-      break;
-
     case Ringing:
       phoneInUse = true;
       phoneState = Idle;
       break;
   }
-
-  if (oldPhoneState != phoneState || oldPhoneInUse != phoneInUse) {
-    Serial.print("Phone State: ");
-    Serial.print(phoneState);
-    Serial.print(" Phone in Use: ");
-    Serial.println(phoneInUse);
-  }
-
-  oldPhoneState = phoneState;
-  oldPhoneInUse = phoneInUse;
-
   bus.update();
   bus.receive(10000);
 }
