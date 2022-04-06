@@ -90,7 +90,7 @@ void scriptResponse() {
     }
   }
 }
- 
+
 // Check if a given answer from the Escape Box is correct or not in the time of the script.
 // If the answer is correct, check the Response that needs to follow.
 // If the answer is wrong, don't do anything (for now).
@@ -106,12 +106,7 @@ bool scriptAction(uint8_t id, char parameter[20]) {
       }
     }
   }
-  if (inputCorrect == true) {
-    return true;
-  }
-  else {
-    return false;
-  }
+  return inputCorrect;
 }
 
 void send_command(uint8_t id, uint8_t cmd) {
@@ -149,7 +144,7 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
   // Copy the payload byte array into struct.
   payLoad pl;
   memcpy(&pl, payload, sizeof(pl));
-  
+
   Serial.println(pl.cmd);
   Serial.println(pl.msgLine);
 
