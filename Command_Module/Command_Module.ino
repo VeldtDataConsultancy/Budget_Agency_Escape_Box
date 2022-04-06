@@ -37,22 +37,15 @@ struct payLoad {
   char msgLine[20];     // Character to send either phone number.
 };
 
-payLoad pl;
-
 // ENUMERATORS
 typedef enum {Idle_Init, Idle, Dialtone, Dialling, Connecting_Init, Connecting, Connected, Disconnected, Ringing} phoneStateType;
 phoneStateType phoneState = Idle;
-
-phoneStateType oldPhoneState;
-
-// CONSTANTS
 
 // GLOBAL VARIABLES
 uint8_t mp3ToPlay = 0;        // Mp3 number that needs to be heard.
 unsigned long ringDelayTime;  // Start time of the delay before the message is played.
 uint16_t ringWaitTime;        // A slight delay of 1,5 seconds before an mp3 plays. Gives time to put the horn to the ear.
 bool phoneInUse = false;      // Whether an Mp3 has a phone purpose or not. Needed to identify the audio to relay to speaker.
-bool oldPhoneInUse;
 
 // Script response array. Parameters needed to give a response to the user.
 typedef struct {
@@ -97,7 +90,7 @@ void scriptResponse() {
     }
   }
 }
-
+ 
 // Check if a given answer from the Escape Box is correct or not in the time of the script.
 // If the answer is correct, check the Response that needs to follow.
 // If the answer is wrong, don't do anything (for now).
@@ -154,7 +147,9 @@ void stop_audio() {
 void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info &packet_info) {
   // Read where the message is from.
   // Copy the payload byte array into struct.
+  payLoad pl;
   memcpy(&pl, payload, sizeof(pl));
+  
   Serial.println(pl.cmd);
   Serial.println(pl.msgLine);
 
