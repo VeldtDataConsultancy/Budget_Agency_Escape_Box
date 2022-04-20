@@ -34,7 +34,7 @@ Bounce startSwitch = Bounce(); // Bounce object for the start button.
 // STRUCTS
 struct payLoad {
   uint8_t cmd;          // Defines the what to do on the other side.
-  char msgLine[20];     // Character to send either phone number.
+  char msgLine[20];     // Character to send any phone number.
 };
 
 // ENUMERATORS
@@ -73,6 +73,16 @@ uint8_t scriptStep = 0;       // Script step for the game. Each succesfull answe
 bool gameStart = false;
 
 // FUNCTIONS
+void director(uint8_t id, char parameter[20]) {
+  bool checkAnswer = scriptAction(id, parameter);
+  if (checkAnswer == true) {
+    scriptResponse();
+  }
+  else {
+    phoneState = Disconnected;
+  }
+}
+
 void scriptResponse() {
   for (int i = 0; i < sizeof gameResponse / sizeof gameResponse[0]; i++) {
     if (gameResponse[i].scriptStep == scriptStep) {
@@ -152,23 +162,13 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
     if (pl.cmd == 1) phoneState = Idle_Init;    // Phone horn went on the hook. State to idle. Stop the MP3 player.
     if (pl.cmd == 2) phoneState = Dialtone;     // Phone horn went off the hook. Loop the dial tone.
     if (pl.cmd == 3) {                          // Repeat button is pressed. Play the last played MP3.
-      if (mp3ToPlay != 0) {
-        phoneState = Ringing;
-      }
+      if (mp3ToPlay != 0) phoneState = Ringing;
     }
-    if (pl.cmd == 4) phoneState = Dialling;    // Phone starts to dial. Stop the MP3 plpayer but keep phone active.
-    if (pl.cmd == 10) {                         // Phone number dialled. Check if it is correct.
-      bool checkAnswer = scriptAction(packet_info.tx.id, pl.msgLine);
-      if (checkAnswer == true) {
-        scriptResponse();
-      }
-      else {
-        phoneState = Disconnected;
-      }
-    }
-    if (pl.cmd == 11) phoneState = Disconnected;  // Phone number entered is too big. Play disconnect song and set phone state to disconnect.
-    if (pl.cmd == 12) phoneState = Ringing;       // Phone is ringing. Send command phone state to ringing as well.
-    if (pl.cmd == 13) {                           // Phone horn off the hook after Ringing State. Play suggested MP3.
+    if (pl.cmd == 4) phoneState = Dialling;                     // Phone starts to dial. Stop the MP3 plpayer but keep phone active.
+    if (pl.cmd == 10) director(packet_info.tx.id, pl.msgLine);  // Phone number dialled. Check if it is correct.
+    if (pl.cmd == 11) phoneState = Disconnected;                // Phone number entered is too big. Play disconnect song and set phone state to disconnect.
+    if (pl.cmd == 12) phoneState = Ringing;                     // Phone is ringing. Send command phone state to ringing as well.
+    if (pl.cmd == 13) {                                         // Phone horn off the hook after Ringing State. Play suggested MP3.
       ringDelayTime = millis();
       ringWaitTime = 1500;
       phoneState = Connecting;
@@ -186,7 +186,7 @@ void setup() {
   Serial.begin(9600);
   mp3Serial.begin(MP3_SERIAL_SPEED, SWSERIAL_8N1, MP3_RX_PIN, MP3_TX_PIN, false, MP3_SERIAL_BUFFER_SIZE, 0);
 
-  delay(100);
+  delay(500);
 
   if (!mp3.begin(mp3Serial)) {  //Use softwareSerial to communicate with mp3.
     Serial.println(F("DFPlayer unable to begin:"));
@@ -206,9 +206,9 @@ void setup() {
   startSwitch.interval(20);
 
   // Other Pin Modes.
-  pinMode(Audio_Pin, OUTPUT); // Pin to control the Reed-Relay.
-  pinMode(Audiorelay_Pin, INPUT_PULLUP); // Pin to control the rerouting of the audio
-  pinMode(Mp3_Pin, INPUT);    // Pin to read from if the Mp3 player is busy.
+  pinMode(Audio_Pin, OUTPUT);            // Pin to control the Reed-Relay.
+  pinMode(Audiorelay_Pin, INPUT_PULLUP); // Pin to control the rerouting of the audio.
+  pinMode(Mp3_Pin, INPUT);               // Pin to read from if the Mp3 player is busy.
 
   digitalWrite(Audio_Pin, LOW);
 }
@@ -221,6 +221,11 @@ void loop() {
     scriptResponse();
     gameStart = true;
   }
+
+  //TODO: Create a button to revert to speaker or phone when phone is in use.
+  if (phoneInUse == true) digitalWrite(Audio_Pin,(digitalRead(Audiorelay_Pin)));
+  else digitalWrite(Audio_Pin, LOW);
+  
 
   switch (phoneState) {
     case Idle_Init:
@@ -250,12 +255,12 @@ void loop() {
         play_audio(mp3ToPlay, false);
         send_command(PJON_Phone_Id, 2);
         phoneState = Connected;
-        delay(20);
       }
       break;
 
     case Connected:
-      if (digitalRead(Mp3_Pin) ==  1) {    // Hardware check to see if the MP3 is done playing. If so, set phone to disconnected.
+      delay(20);                         // Slight delay waiting for the mp3 player to respond.
+      if (digitalRead(Mp3_Pin) ==  1) {  // Hardware check to see if the MP3 is done playing. If so, set phone to disconnected.
         send_command(PJON_Phone_Id, 3);
         phoneState = Disconnected;
       }
