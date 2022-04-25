@@ -4,6 +4,9 @@
 #include <SoftwareSerial.h>
 #include "DFRobotDFPlayerMini.h"
 
+// Debug definition for debugging purposes. Uncomment if not needed.
+#define Debug
+
 // PJON initialization.
 #define PJON_Phone_Id          19 // Id for the Phone module.
 #define PJON_Command_Id        20 // Id for the Command module.
@@ -42,7 +45,8 @@ typedef enum {Idle_Init, Idle, Dialtone, Dialling, Connecting_Init, Connecting, 
 phoneStateType phoneState = Idle;
 
 // GLOBAL VARIABLES
-uint8_t mp3ToPlay = 0;        // Mp3 number that needs to be heard.
+uint8_t mp3ToPlay = 0;        // Mp3 number that needs to be heard on the phone.
+uint8_t moodToPlay;           // Mood mp3's to play if phone is not in use.
 unsigned long ringDelayTime;  // Start time of the delay before the message is played.
 uint16_t ringWaitTime;        // A slight delay of 1,5 seconds before an mp3 plays. Gives time to put the horn to the ear.
 bool phoneInUse = false;      // Whether an Mp3 has a phone purpose or not. Needed to identify the audio to relay to speaker.
@@ -136,7 +140,6 @@ void send_command(uint8_t id, uint8_t cmd, char msgLine[20]) {
 
 // Function for playing mp3's.
 // audioNum = Which mp3 to play.
-// TODO: phoneAudio: True = Phone False = Speaker. Phone audio can be re-routed to the Speaker.
 // playLoop: True = Play mp3 in Loop. False = Play mp3 once.
 void play_audio(uint8_t audioNum, bool playLoop) {
   if (playLoop == true) mp3.loop(audioNum);
@@ -155,8 +158,14 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
   payLoad pl;
   memcpy(&pl, payload, sizeof(pl));
 
-  Serial.println(pl.cmd);
+#ifdef Debug
+  Serial.print("PJON id: ");
+  Serial.print(packet_info.tx.id);
+  Serial.print(" Command: ");
+  Serial.print(pl.cmd);
+  Serial.print(" Message: ");
   Serial.println(pl.msgLine);
+#endif
 
   if (packet_info.tx.id == 19) {
     if (pl.cmd == 1) phoneState = Idle_Init;    // Phone horn went on the hook. State to idle. Stop the MP3 player.
@@ -226,7 +235,6 @@ void loop() {
   if (phoneInUse == true) digitalWrite(Audio_Pin,(digitalRead(Audiorelay_Pin)));
   else digitalWrite(Audio_Pin, LOW);
   
-
   switch (phoneState) {
     case Idle_Init:
       phoneInUse = false;
