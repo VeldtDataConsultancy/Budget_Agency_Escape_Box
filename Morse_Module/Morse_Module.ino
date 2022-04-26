@@ -56,6 +56,8 @@ morseArray morseDictionary[] = {
   {"z", "--.."},
 };
 
+String morseWord;  // String to place the morse word in.
+
 void send_command(uint8_t id, uint8_t cmd) {
   // A function that handles all the messaging to the other modules.
   payLoad pl;
@@ -89,9 +91,21 @@ void setup() {
   pinMode(Key_Pin, INPUT_PULLUP);
   keySwitch.attach(Key_Pin);
   keySwitch.interval(20);
+
+  //Setup a Serial Connection.
+  Serial.begin(9600);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
+  if(Serial.available()) {
+    String morseWord = Serial.readStringUntil('\n');
+    // input = Serial.Read();
+    Serial.println(morseWord);
 
+    int len = morseWord.length();
+    for (int i = 0; i < len; i++) {
+      char morseChar = morseWord.charAt(i);
+    }
+  }
 }
