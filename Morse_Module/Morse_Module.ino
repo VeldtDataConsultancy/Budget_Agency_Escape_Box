@@ -7,7 +7,7 @@
 #define PJON_Comm_Pin     8   // Communication pin for PJON on the target PLC.
 
 // Pin initialization.
-#define Key_Pin           12  // Pin for the Telegraph Key button.
+#define Key_Pin           4   // Pin for the Telegraph Key button.
 
 // PJON Bus Declaration.
 PJONSoftwareBitBang bus(PJON_Command_Id);
@@ -24,39 +24,40 @@ struct payLoad {
 // Script response array. Parameters needed to give a response to the user.
 typedef struct {
   char morseChar;     // Character of the alphabet.
-  char morseCode[4];  // Translated morse code.
+  String morseCode;  // Translated morse code.
 } morseArray;
 
 morseArray morseDictionary[] = {
-  {"a", ".-" },
-  {"b", "-..."},
-  {"c", "-.-."},
-  {"d", "-.."},
-  {"e", "."},
-  {"f", "..-."},
-  {"g", "--."},
-  {"h", "...."},
-  {"i", ".."},
-  {"j", ".---"},
-  {"k", "-.-"},
-  {"l", ".-.."},
-  {"m", "--"},
-  {"n", "-."},
-  {"o", "---"},
-  {"p", ".--."},
-  {"q", "--.-"},
-  {"r", ".-."},
-  {"s", "..."},
-  {"t", "-"},
-  {"u", "..-"},
-  {"v", "...-"},
-  {"w", ".--"},
-  {"x", "-..-"},
-  {"y", "-.--"},
-  {"z", "--.."},
+  {'a', ".-" },
+  {'b', "-..."},
+  {'c', "-.-."},
+  {'d', "-.."},
+  {'e', "."},
+  {'f', "..-."},
+  {'g', "--."},
+  {'h', "...."},
+  {'i', ".."},
+  {'j', ".---"},
+  {'k', "-.-"},
+  {'l', ".-.."},
+  {'m', "--"},
+  {'n', "-."},
+  {'o', "---"},
+  {'p', ".--."},
+  {'q', "--.-"},
+  {'r', ".-."},
+  {'s', "..."},
+  {'t', "-"},
+  {'u', "..-"},
+  {'v', "...-"},
+  {'w', ".--"},
+  {'x', "-..-"},
+  {'y', "-.--"},
+  {'z', "--.."}
 };
 
-String morseWord;  // String to place the morse word in.
+String morseWord;       // String to place the morse word in.
+String morseTranslated; // String to place the translated morse code in.
 
 void send_command(uint8_t id, uint8_t cmd) {
   // A function that handles all the messaging to the other modules.
@@ -99,13 +100,20 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   if(Serial.available()) {
+    morseTranslated = "";
     String morseWord = Serial.readStringUntil('\n');
-    // input = Serial.Read();
     Serial.println(morseWord);
 
     int len = morseWord.length();
     for (int i = 0; i < len; i++) {
-      char morseChar = morseWord.charAt(i);
+      char morseCharacter = morseWord.charAt(i);
+      for (int j = 0; j < sizeof morseDictionary / sizeof morseDictionary[0]; j++) {
+        if (morseCharacter == morseDictionary[j].morseChar) {
+          morseTranslated = morseTranslated + morseDictionary[j].morseCode;
+          if (i < len -1) morseTranslated = morseTranslated + " ";
+          Serial.println(morseTranslated);
+        }
+      }
     }
   }
 }
