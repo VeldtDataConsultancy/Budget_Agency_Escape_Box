@@ -56,6 +56,9 @@ morseArray morseDictionary[] = {
   {'z', "--.."}
 };
 
+uint8_t morseSignal[1];
+uint8_t morseRest[1];
+
 String morseWord;       // String to place the morse word in.
 String morseTranslated; // String to place the translated morse code in.
 
@@ -82,6 +85,24 @@ void receiver_function(uint8_t *payload, uint16_t length, const PJON_Packet_Info
   memcpy(&pl, payload, sizeof(pl));
 };
 
+void convertWordToMorse(String wordGiven) {
+  Serial.println(wordGiven);
+  int len = wordGiven.length();
+  for (int i = 0; i < len; i++) {
+    char morseCharacter = wordGiven.charAt(i);
+    for (int j = 0; j < sizeof morseDictionary / sizeof morseDictionary[0]; j++) {
+      if (morseCharacter == morseDictionary[j].morseChar) {
+        morseTranslated = morseTranslated + morseDictionary[j].morseCode;
+        if (i < len - 1) morseTranslated = morseTranslated + " ";
+        Serial.println(morseTranslated);
+        break;
+      }
+    }
+  }
+};
+
+
+
 void setup() {
   // Setup of the PJON communication.
   bus.strategy.set_pin(PJON_Comm_Pin);
@@ -99,21 +120,13 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  if(Serial.available()) {
+  if (Serial.available()) {
     morseTranslated = "";
     String morseWord = Serial.readStringUntil('\n');
-    Serial.println(morseWord);
 
-    int len = morseWord.length();
-    for (int i = 0; i < len; i++) {
-      char morseCharacter = morseWord.charAt(i);
-      for (int j = 0; j < sizeof morseDictionary / sizeof morseDictionary[0]; j++) {
-        if (morseCharacter == morseDictionary[j].morseChar) {
-          morseTranslated = morseTranslated + morseDictionary[j].morseCode;
-          if (i < len -1) morseTranslated = morseTranslated + " ";
-          Serial.println(morseTranslated);
-        }
-      }
-    }
+    // 1. Translate the given word into a morse code.
+    convertWordToMorse(morseWord);
+
+    // 2. Create a signal array depending on the morse code.
   }
 }
