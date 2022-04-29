@@ -1,3 +1,10 @@
+#include <Bounce2.h>
+
+#define Morse_Pin 9
+
+// Bounce Switch Initialization.
+Bounce morseSwitch = Bounce(); // Bounce object for the start button.
+
 // Script response array. Parameters needed to give a response to the user.
 typedef struct {
   char morseChar;     // Character of the alphabet.
@@ -38,12 +45,11 @@ uint8_t dah = 48;
 
 //uint8_t morseSignal[];
 
-String morseWord = "help";       // String to place the morse word in.
+String morseWord = "sos";       // String to place the morse word in.
 String morseTranslated; // String to place the translated morse code in.
 
 void convertWordToMorse(String wordGiven) {
   morseTranslated = "";
-  Serial.println(wordGiven);
   int len = wordGiven.length();
   for (int i = 0; i < len; i++) {
     char morseCharacter = wordGiven.charAt(i);
@@ -55,7 +61,6 @@ void convertWordToMorse(String wordGiven) {
       }
     }
   }
-  Serial.println(morseTranslated);
 };
 
 void convertMorseToSignalArray(String morseGiven) {
@@ -71,16 +76,36 @@ void convertMorseToSignalArray(String morseGiven) {
   }
 };
 
+void convertMorseToRestArray(String morseGiven) {
+  int k = 0;
+  String a = morseGiven;
+  a.replace(" ", "");
+  int len = a.length() - 1;
+  uint8_t restSignal[len];
+  for (int i = 1; i < morseGiven.length(); i++) {
+    if (morseGiven.charAt(i) != ' ' && morseGiven.charAt(i - 1) != ' ') {
+      restSignal[k] = dot;
+      k++;
+    }
+    if (morseGiven.charAt(i) == ' ') {
+      restSignal[k] = dah;
+      k++;
+    }
+  }
+};
+
 void setup() {
+  // Start Button Pin and Switch Intialization.
+  pinMode(Morse_Pin, INPUT_PULLUP);
+  morseSwitch.attach(Morse_Pin);
+  morseSwitch.interval(20);
+  
   //Setup a Serial Connection.
   Serial.begin(9600);
-
-  // 1. Translate the given word into a morse code.
-  convertWordToMorse(morseWord);
-
-  // 2. Create a signal array depending on the morse code.
-  convertMorseToSignalArray(morseTranslated);
 }
 
 void loop() {
+  if (morseSwitch.fell()) {
+    Serial.println("Morse start.");
+  }
 }
